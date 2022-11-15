@@ -1,289 +1,421 @@
-// CMSC 341 - Spring 2022 - Project 4
-#include "dnadb.h"
-#include <random>
-#include <vector>
-enum RANDOM {UNIFORMINT, UNIFORMREAL, NORMAL};
-class Random {
-public:
-    Random(int min, int max, RANDOM type=UNIFORMINT, int mean=50, int stdev=20) : m_min(min), m_max(max), m_type(type)
-    {
-        if (type == NORMAL){
-            //the case of NORMAL to generate integer numbers with normal distribution
-            m_generator = std::mt19937(m_device());
-            //the data set will have the mean of 50 (default) and standard deviation of 20 (default)
-            //the mean and standard deviation can change by passing new values to constructor 
-            m_normdist = std::normal_distribution<>(mean,stdev);
-        }
-        else if (type == UNIFORMINT) {
-            //the case of UNIFORMINT to generate integer numbers
-            // Using a fixed seed value generates always the same sequence
-            // of pseudorandom numbers, e.g. reproducing scientific experiments
-            // here it helps us with testing since the same sequence repeats
-            m_generator = std::mt19937(10);// 10 is the fixed seed value
-            m_unidist = std::uniform_int_distribution<>(min,max);
-        }
-        else{ //the case of UNIFORMREAL to generate real numbers
-            m_generator = std::mt19937(10);// 10 is the fixed seed value
-            m_uniReal = std::uniform_real_distribution<double>((double)min,(double)max);
-        }
-    }
-    void setSeed(int seedNum){
-        // we have set a default value for seed in constructor
-        // we can change the seed by calling this function after constructor call
-        // this gives us more randomness
-        m_generator = std::mt19937(seedNum);
-    }
-
-    int getRandNum(){
-        // this function returns integer numbers
-        // the object must have been initialized to generate integers
-        int result = 0;
-        if(m_type == NORMAL){
-            //returns a random number in a set with normal distribution
-            //we limit random numbers by the min and max values
-            result = m_min - 1;
-            while(result < m_min || result > m_max)
-                result = m_normdist(m_generator);
-        }
-        else if (m_type == UNIFORMINT){
-            //this will generate a random number between min and max values
-            result = m_unidist(m_generator);
-        }
-        return result;
-    }
-
-    double getRealRandNum(){
-        // this function returns real numbers
-        // the object must have been initialized to generate real numbers
-        double result = m_uniReal(m_generator);
-        // a trick to return numbers only with two deciaml points
-        // for example if result is 15.0378, function returns 15.03
-        // to round up we can use ceil function instead of floor
-        result = std::floor(result*100.0)/100.0;
-        return result;
-    }
-    
-    private:
-    int m_min;
-    int m_max;
-    RANDOM m_type;
-    std::random_device m_device;
-    std::mt19937 m_generator;
-    std::normal_distribution<> m_normdist;//normal distribution
-    std::uniform_int_distribution<> m_unidist;//integer uniform distribution
-    std::uniform_real_distribution<double> m_uniReal;//real uniform distribution
-
-};
+#include "elevator.h"
 class Tester{
 public:
-bool testInsert();
-bool testGetDNA();
-bool testRemove();
+  bool insertAtHeadNorm();//tests that insertAtHead() works fro a normal case
+  bool insertAtHeadError(); //Tests that insertAtHead() does not work for an error case (floor != (m_ground -1))
+  bool insertAtTailNorm();//Tests that insertAtTail() works for a normal case
+  bool insertAtTailError();// Tests that insertAtTail() works for an error case (floor != (m_top + 1))
+  bool removeFloorNorm(); //tests that removefloor() works correctly for a normal case
+  bool removeFloorError1(); //tests that removeFloor() throws an error when deleting floor that is out of range
+  bool removeFloorError2(); // tests that removeFloor() does not return true when deleting a non-exisiting floor
+  bool insertFloorNorm();//tests that insertFloor() works in a normal case
+  bool insertFloorError(); //tests that insertFloor() throws an error when asked to insert something out of range
+  bool insertFloorEdge(); //tests that insertFloor() does not insert a floor that already exists
+  bool testAssignEdgeCase(); //tests an edge case for assignment operator
+  bool testAssignNormCase();//tests a normal case for assignment operator
+  bool testAssignEdgeCase2();//tests an edge case for assignment operator
+  bool testCopyEdgeCase();//tests edge case for copy constructor
+  bool testCopyNormCase();//tests normal case for copy constructor
+  bool testValues(const Elevator& t1, const Elevator& t2);//checks if all values are equal in 2 objects
+  bool testPointers(const Elevator& t1, const Elevator& t2);//checks that all pointers are inequal in 2 objects
+  bool enterExitMove(); //checks enter,exit, and move function
 
 };
-
-unsigned int hashCode(const string str);
-string sequencer(int size, int seedNum);
-
 int main(){
-    Tester tester;
-    {
-        cout << "testing insert function for non-colliding keys and colliding keys:\n\n";
-        if (tester.testInsert() == true){
-            cout << "All data points exist in the DnaDb!\n";
-        }
-        else
-            cout << "Some data points are missing in DnaDb\n";
+  Tester tester;
+  { cout << "\nTesting insertAtTail() normal case:\n\n";
+   if (tester.insertAtTailNorm() == true)
+     cout << "\tNormal case (node inserted) passed!\n";
+   else
+    cout << "\tNormal case failed (node did not get inserted)!\n";
+  }
+  {
+    cout <<"\nTesting insertAtTail() Error Case:\n\n";
+    if (tester.insertAtTailError() == true)
+      cout << "\tError case (node not inserted) passed!\n";
+    else{
+      cout << "\tError case (node inserted) failed!\n";
     }
-    {
-        cout << "testing getDNA() function:\n\n";
-        if (tester.testGetDNA() == true){
-            cout << "getDNA() works for non-colliding and colliding keys\n";
-        }
-        else{
-            cout << "getDNA() does not work correctly\n";
-        }
-    }
-    {
-        cout << "testing remove function:\n\n";
-        if (tester.testRemove() == true){
-            cout << "remove function works for non-colliding and colliding data and rehashes correctly\n";
-        }
-        else{
-            cout << "remove function does not work correctly\n";
-        }
-    }
-
-    
-    return 0;
-}
-unsigned int hashCode(const string str) {
-   unsigned int val = 0 ;
-   const unsigned int thirtyThree = 33 ;  // magic number from textbook
-   for (unsigned int i = 0 ; i < str.length(); i++)
-      val = val * thirtyThree + str[i] ;
-   return val ;
-}
-string sequencer(int size, int seedNum){
-    //this function returns a random DNA sequence
-    string sequence = "";
-    Random rndObject(0,3);
-    rndObject.setSeed(seedNum);
-    for (int i=0;i<size;i++){
-        sequence = sequence + ALPHA[rndObject.getRandNum()];
-    }
-    return sequence;
-}
-
-bool Tester::testInsert(){
-    vector<DNA> dataList;
-    Random RndLocation(MINLOCID,MAXLOCID);
-    DnaDb dnadb(MINPRIME, hashCode);
-    bool result = true;
-    for (int i=0;i<53;i++){
-        // generating random data
-        DNA dataObj = DNA(sequencer(5, i), RndLocation.getRandNum());
-        // saving data for later use
-        dataList.push_back(dataObj);
-        //inserting data in to the DnaDb object
-        dnadb.insert(dataObj);
-        if (i == 51){
-            if (dnadb.m_oldSize != 51){
-                return false;
-            }
-            if (dnadb.m_currentCap != 211){
-                return false;
-            }
-        }
-    }
-    //checking if all data points exist
-    for (vector<DNA>::iterator it = dataList.begin(); it != dataList.end(); it++){
-        result = result && (*it == dnadb.getDNA((*it).getSequence(), (*it).getLocId()));
-    }
-    for (int i=0;i<10;i++){
-        // generating random data
-        DNA dataObj = DNA(sequencer(5, i), RndLocation.getRandNum());
-        // saving data for later use
-        dataList.push_back(dataObj);
-        //inserting data in to the DnaDb object
-        dnadb.insert(dataObj);
-    }
-    for (int i=0;i<100;i++){
-        // generating random data
-        DNA dataObj = DNA(sequencer(5, i), RndLocation.getRandNum());
-        // saving data for later use
-        dataList.push_back(dataObj);
-        //inserting data in to the DnaDb object
-        dnadb.insert(dataObj);
-    }
-    //checking if all data was inserted
-    for (vector<DNA>::iterator it = dataList.begin(); it != dataList.end(); it++){
-        result = result && (*it == dnadb.getDNA((*it).getSequence(), (*it).getLocId()));
-    }
-    // checking whether all data are inserted
-    for (vector<DNA>::iterator it = dataList.begin(); it != dataList.end(); it++){
-        result = result && (*it == dnadb.getDNA((*it).getSequence(), (*it).getLocId()));
-    }
-    return result;
-}
-
-bool Tester::testGetDNA(){
-    vector<DNA> dataList;
-    Random RndLocation(MINLOCID,MAXLOCID);
-    DnaDb dnadb(MINPRIME, hashCode);
-    bool result = true;
-    for (int i=0;i<10;i++){
-        // generating random data
-        DNA dataObj = DNA(sequencer(5, i), RndLocation.getRandNum());
-        // saving data for later use
-        dataList.push_back(dataObj);
-        //inserting data in to the DnaDb object
-        dnadb.insert(dataObj);
-        if (dnadb.getDNA(dataObj.getSequence(), dataObj.getLocId()) == EMPTY){
-            result = false;
-        }
-    }
-    vector<DNA> dataList2;
-    Random RndLocation2(MINLOCID,MAXLOCID);
-    DnaDb dnadb2(MINPRIME, hashCode);
- 
-    for (int i=0;i<10;i++){
-        // generating random data
-        DNA dataObj = DNA(sequencer(5, i), RndLocation2.getRandNum());
-        // saving data for later use
-        dataList2.push_back(dataObj);
-        //inserting data in to the DnaDb object
-        dnadb2.insert(dataObj);
-        if (dnadb2.getDNA(dataObj.getSequence(), dataObj.getLocId()) == EMPTY){
-            result = result + false;
-        }
-    }
-    vector<DNA> dataList3;
-    Random RndLocation3(MINLOCID,MAXLOCID);
-    DnaDb dnadb3(MINPRIME, hashCode);
- 
-    for (int i=0;i<1;i++){
-        // generating random data
-        DNA dataObj = DNA(sequencer(5, i), RndLocation3.getRandNum());
-        // saving data for later use
-        if (dnadb3.getDNA(dataObj.getSequence(), dataObj.getLocId()) == EMPTY){
-            result = result + true;
-            return result;
-        }
-        else{
-            return false;
-        }
-        dataList3.push_back(dataObj);
-        //inserting data in to the DnaDb object
-        dnadb3.insert(dataObj);
-    }
-    return result;
-
-
-
+  }
+  {
+    cout << "\nTesting insertAtHead() normal case:\n\n";
+    if (tester.insertAtHeadNorm() == true)
+      cout << "\tNormal case (node inserted) passed!\n";
+    else
+      cout << "\tNormal case failed (node did not get inserted)!\n";
+  }
+  {
+    cout <<"\nTesting insertAtHead() Error Case:\n\n";
+    if (tester.insertAtHeadError() == true)
+      cout << "\tError case (node not inserted) passed!\n";
+    else
+      cout << "\tError case (node inserted) failed!\n";
+  }
+  {
+    cout << "\nTesting insertFloor() normal case:\n\n";
+    if (tester.insertFloorNorm() == true)
+      cout << "\tNormal case (node inserted) passed!\n";
+    else
+      cout << "\tNormal case failed (node did not get inserted)!\n";
+  }
+  {
+    cout << "\nTesting insertFloor() error case:\n\n";
+    if (tester.insertFloorError() == true)
+      cout << "\tError case passed!\n";
+    else
+      cout << "\tError case failed!\n";
+  }
+  {
+    cout << "\nTesting insertFloor() edge case:\n\n";
+    if (tester.insertFloorEdge() == true)
+      cout << "\tEdge case (node not inserted) passed!\n";
+    else
+      cout << "\tEdge case failed (node inserted)!\n";
+  }
+  {
+   cout << "\nTesting removeFloor() normal case:\n\n";
+    if (tester.removeFloorNorm() == true)
+      cout << "\tNormal case (everything was removed) passed!\n";
+    else
+      cout << "\tNormal case failed (not everything was removed)!\n"; 
+  }
+  {
+    cout << "\nTesting removeFloor() error case:\n\n";
+    if (tester.removeFloorError1() == true)
+      cout << "\tError case passed!\n";
+    else
+      cout << "\tError case failed!\n";
+  }
+  {
+    cout << "\nTesting removeFloor() error case:\n\n";
+    if (tester.removeFloorError2() == true)
+      cout << "\tError case (nothing was removed) passed!\n";
+    else
+      cout << "\tError case failed (deleted non-existing floor))!\n"; 
+  }
+  {
+    cout << "\nTesting assignment operator edge case:\n\n";
+    if (tester.testAssignEdgeCase() == true)
+      cout << "\tEdge case (1 floor)) passed!\n";
+    else
+      cout << "\tEdge case failed (values and/or pointers are wrong))!\n";
+  }
+  {
+    cout << "\nTesting assignment operator normal case:\n\n";
+    if (tester.testAssignNormCase() == true)
+      cout << "\tNormal case passed!\n";
+    else
+      cout << "\tNormal case failed (values and/or pointers are wrong))!\n";
+  }
+  {
+    cout << "\nTesting assignment operator edge case:\n\n";
+    if (tester.testAssignEdgeCase2() == true)
+      cout << "\tEdge case (2 floors) passed!\n";
+    else
+      cout << "\tEdge case failed (values and/or pointers are wrong))!\n";
+  }
+  {
+    cout << "\nTesting copy constructor edge case:\n\n";
+    if (tester.testCopyEdgeCase() == true)
+      cout << "\tEdge case (1 floors) passed!\n";
+    else
+      cout << "\tEdge case failed (values and/or pointers are wrong))!\n";
+  }
+  {
+    cout << "\nTesting copy constructor normal case:\n\n";
+    if (tester.testCopyNormCase() == true)
+      cout << "\tNormal case passed!\n";
+    else
+      cout << "\tNormal case failed (values and/or pointers are wrong))!\n";
+  }
+  {
+    cout << "\nTesting enter/exit/move normal case:\n\n";
+    if (tester.enterExitMove() == true)
+      cout << "\tNormal case passed!\n";
+    else
+      cout << "\tNormal case failed!\n";
+  }
+  cout << endl;
+   return 0;
 }
 
-bool Tester::testRemove(){
-    vector<DNA> dataList;
-    Random RndLocation(MINLOCID,MAXLOCID);
-    DnaDb dnadb(MINPRIME, hashCode);
-    bool result = true;
-    for (int i=0;i<53;i++){
-        // generating random data
-        DNA dataObj = DNA(sequencer(5, i), RndLocation.getRandNum());
-        // saving data for later use
-        dataList.push_back(dataObj);
-        //inserting data in to the DnaDb object
-        dnadb.insert(dataObj);
-        if (i >= 30){
-            dnadb.remove(dataObj);
-            dataList.pop_back();
-        }
+bool Tester::insertAtTailNorm(){
+  Elevator anElev;
+  bool trueFalse = false;
+  for (int i =0; i < 300; i++){
+    trueFalse = anElev.insertAtTail(i); //inserts 300 floors
+    if (trueFalse == false){
+      return false;
     }
-    //checking if all data points exist
-    for (vector<DNA>::iterator it = dataList.begin(); it != dataList.end(); it++){
-        result = result && (*it == dnadb.getDNA((*it).getSequence(), (*it).getLocId()));
-    }
-    vector<DNA> dataList2;
-    Random RndLocation2(MINLOCID,MAXLOCID);
-    DnaDb dnadb2(MINPRIME, hashCode);
-    for (int i=0;i<10;i++){
-        // generating random data
-        DNA dataObj = DNA(sequencer(5, i), RndLocation2.getRandNum());
-        // saving data for later use
-        dataList2.push_back(dataObj);
-        //inserting data in to the DnaDb object
-        dnadb2.insert(dataObj);
-        if (i >= 2){
-            dnadb2.remove(dataObj);
-            dataList2.pop_back();
-        }
-    }
-    //checking if all data points exist
-    for (vector<DNA>::iterator it = dataList2.begin(); it != dataList2.end(); it++){
-        result = result && (*it == dnadb2.getDNA((*it).getSequence(), (*it).getLocId()));
-    }
-    return result;
-
+  }
+  return true;
 }
 
+bool Tester::insertAtTailError(){
+  Elevator anElev;
+  bool trueFalse = false;
+  for (int i = 0; i < 300; i++){ 
+    if (i ==3){ //changes input to be out of range
+      i = 10;
+    }
+    trueFalse = anElev.insertAtTail(i);
+    if (i == 10 && trueFalse == false){ //if floor is too high to be inserted, return true
+      anElev.dump();
+      return true;
+    }
+    else if (trueFalse == false && i != 10){ //if floor is inserted even though out of bounds, returns false
+      return false;
+    }
+  }
+  return true;
+}
+
+bool Tester::insertAtHeadNorm(){
+  Elevator anElev;
+  bool trueFalse = false;
+  for (int i = 300; i > 0; i--){ //inserts 300 floors using insertAtHead()
+    trueFalse = anElev.insertAtHead(i);
+    if (trueFalse == false){
+      return false;
+    }
+  }
+  return true;
+}
+
+bool Tester::insertAtHeadError(){
+  Elevator anElev;
+  bool trueFalse = false;
+  for (int i = 300; i > 0; i--){
+    if (i == 297){ //changes value to be out of range
+      i = 295;
+    }
+    trueFalse = anElev.insertAtHead(i);
+    if (trueFalse == false && i != 295){ // if inserted, returns false
+      return false;
+    }
+    else if (trueFalse == false && i == 295){ //if not inserted, returns true
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Tester::insertFloorNorm(){
+  Elevator anElev;
+  bool trueFalse = false;
+  for (int i = 0; i < 16; i++){ //populates list
+    anElev.insertAtTail(i);
+  }
+  for (int i = 1; i < 15; i++){
+    anElev.removeFloor(i); //removes floor from list
+    trueFalse = anElev.insertFloor(i);//inserts it back into list
+    if (trueFalse == false){
+      return false;
+    }
+  }
+  return true;
+}
+
+bool Tester::insertFloorError(){
+  Elevator anElev;
+  for (int i = 0;i <= 1; i++){
+     if (i > 0){
+       try{ //tries to insert floor into a list with only 1 floor
+        anElev.insertFloor(i);
+       }
+        catch(std::out_of_range &e){ //catches an error
+          cout << e.what() << endl;
+          return true;
+      }
+     }
+     anElev.insertFloor(i);
+  }
+  return false;
+}
+
+bool Tester::insertFloorEdge(){
+ Elevator anElev;
+ bool trueFalse = false;
+  for (int i = 0;i <= 1; i++){
+    trueFalse = anElev.insertFloor(0);//tries to insert the floor twice
+    if (i > 0 && trueFalse != false){
+      return false;
+    }
+    else if (i > 0 && trueFalse == false){
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Tester::removeFloorNorm(){
+  Elevator anElev;
+  bool trueFalse = false;
+  for (int i = 0; i < 50; i++){ //populates list with 50 floors
+    anElev.insertAtTail(i);
+  }
+  for (int i = 0; i < 50; i++){
+    trueFalse = anElev.removeFloor(i); //removes all floors
+    if (trueFalse == false){
+      return false;
+    }
+  }
+  anElev.dump();
+  return true;
+}
+
+bool Tester::removeFloorError1(){
+  Elevator anElev;
+  for (int i = 0; i < 20; i++){
+    anElev.insertAtTail(i); //populates list
+  }
+  try{
+      anElev.removeFloor(21); //tries to remove floor that is out of range
+    }
+    catch(std::out_of_range &e){ //catches error
+      cout << e.what() << endl;
+      return true;
+    }
+    return false;
+}
+bool Tester::removeFloorError2(){
+  Elevator anElev;
+  bool trueFalse = false;
+  for (int i = 0; i< 15; i++){ //populates list
+    anElev.insertAtTail(i);
+  }
+  trueFalse = anElev.removeFloor(2); //tries to remove the same floor twice
+  trueFalse = anElev.removeFloor(2);
+  if (trueFalse == false){
+    return true;
+  }
+  return false;
+}
+
+bool Tester::testAssignEdgeCase(){
+  Elevator anElev;
+  bool trueFalse = false;
+  anElev.insertAtHead(0);//inserts one floor into anElev
+  Elevator anElev2;
+  anElev2.insertAtHead(3);//inserts one floor to anElev2
+  anElev2 = anElev; //assigns anElev2 to anElev
+
+  //checks values and pointers
+  trueFalse = testValues(anElev,anElev2);
+  trueFalse = trueFalse + testPointers(anElev,anElev2);
+  return trueFalse;
+} 
+bool Tester::testAssignNormCase(){
+  Elevator anElev;
+  Elevator anElev2;
+  bool trueFalse = false;
+  for (int i = 0; i < 15; i++){ //populates both elevators
+    if (i > 5){
+      anElev2.insertAtTail(i);
+    }
+    anElev.insertAtTail(i);
+  }
+  anElev.dump();
+  anElev2 = anElev; //assigns amElev2 to anElev
+  anElev2.dump();
+  trueFalse = testValues(anElev,anElev2); //checks values and pointers
+  trueFalse = trueFalse + testPointers(anElev,anElev2);
+  return trueFalse;
+}
+bool Tester::testAssignEdgeCase2(){
+  Elevator anElev;
+  Elevator anElev2;
+  bool trueFalse;
+  anElev.insertAtTail(1); //puts 2 floors in
+  anElev.insertAtTail(2);
+  anElev2 = anElev;
+  trueFalse = testValues(anElev2,anElev); //checks values and pointers
+  trueFalse = trueFalse + testPointers(anElev2,anElev);
+  return trueFalse;
+}
+
+bool Tester::testValues(const Elevator& t1, const Elevator& t2){
+  bool result = true;
+  int count = 0;
+  //checks if any values differ from each other
+	Floor *curr = t1.m_ground;
+  Floor *curr2 = t2.m_ground;
+  while (curr != nullptr){
+    if (curr->m_floorNum != curr2->m_floorNum){
+      count++;
+    }
+    curr = curr->m_next;
+    curr2 = curr2->m_next;
+  }
+  //makes sure member vars are equal
+  if (count == 0){
+    result = true;
+  }
+  else
+    result = false;
+  return result;
+}
+bool Tester::testPointers(const Elevator& t1, const Elevator& t2){
+  bool result = true;
+  int count = 0;
+  //checks that pointers are different
+  Floor *curr = t1.m_ground;
+  Floor *curr2 = t2.m_ground;
+  while (curr != nullptr){
+    if (curr == curr2){
+      count++;
+    }
+    curr = curr->m_next;
+    curr2 = curr2->m_next;
+  }
+  //checks that pointers are not equal
+  if (count == 0){
+    result = true;
+  }
+  else
+    result = false;
+  return result;
+}
+
+bool Tester::testCopyEdgeCase(){
+  Elevator anElev;
+  bool trueFalse;
+  for (int i = 0; i < 1; i++){ //populates list with 1 floor
+    anElev.insertAtTail(i);
+  }
+  Elevator *anElev2 = new Elevator(anElev); //calls copy constructor
+  trueFalse = testValues(*anElev2,anElev); //checks values and pointers
+  trueFalse = trueFalse + testPointers(*anElev2,anElev);
+  delete anElev2;
+  return trueFalse;
+}
+
+bool Tester::testCopyNormCase(){
+  Elevator anElev;
+  bool trueFalse;
+  for (int i = 0; i < 12; i++){ //populates list
+    anElev.insertAtTail(i);
+  }
+  //anElev.dump();
+  Elevator *anElev2 = new Elevator (anElev); //calls copy constructor
+  trueFalse = testValues(*anElev2,anElev);
+  trueFalse = trueFalse + testPointers(*anElev2,anElev);//checks values and pointers
+  anElev.removeFloor(2);
+  delete anElev2;
+  return trueFalse;
+}
+
+bool Tester::enterExitMove(){
+  Elevator anElev;
+  bool trueFalse = false;
+  for (int i = 0; i < 14; i++){ //populates list
+    anElev.insertAtTail(i);
+  }
+  trueFalse = trueFalse + anElev.enter(3,"Alice"); //checks enter()
+  trueFalse = trueFalse + anElev.move(3,7);//checks move()
+  if (anElev.exit(7,"Alice") == "Alice"){ // checks exit()
+    trueFalse = trueFalse + true;
+  }
+  
+  return trueFalse;
+}
